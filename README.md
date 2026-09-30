@@ -9,8 +9,8 @@ sumber kandidat ──► collect ──► db.json ──► verify ──► b
  - CertStream (sertifikat TLS baru)          │  DNS resolve       - judol-auto.txt
  - crt.sh (kata kunci spesifik)              │  ambil halaman     - judol-reviewed.txt
  - GitHub Issues (laporan orang)             │  skor kata kunci   - judol-auto.domains.txt
- - candidate_lists (opsional)                │  prune yang mati   - data/review-queue.tsv
- - redirect dari situs judol lain            ▼                    - data/sources.tsv
+ - candidate_lists (daftar pihak lain)       │  prune yang mati   - data/review-queue.tsv
+ - tautan & redirect dari situs judol        ▼                    - data/sources.tsv
 ```
 
 Status tiap domain di `data/db.json`:
@@ -24,6 +24,22 @@ Status tiap domain di `data/db.json`:
 | `dead` | tidak resolve / sudah mati, dibuang dari daftar |
 
 Domain lama dicek ulang bergiliran. Jika mati atau berubah selama 5 pengecekan berturut-turut (`prune_after`), domain dikeluarkan dari daftar agar list tetap ramping.
+
+## Penelusuran tautan (snowball crawl)
+
+Situs judol hampir selalu memuat tautan ke domain kembarannya (link alternatif, situs saudara). Setiap halaman yang **lolos verifikasi otomatis** dipindai tautan keluarnya, dan domain barunya masuk antrean kandidat. Kandidat itu tetap melewati DNS dan skor isi halaman seperti biasa, jadi tautan ke situs sah hanya membuang sedikit waktu pengecekan dan tidak ikut terblokir.
+
+Batasan agar penelusuran tidak liar (semua di `config.json` bagian `crawl`):
+
+| Kunci | Fungsi |
+|---|---|
+| `enabled` | `false` untuk mematikan penelusuran |
+| `max_depth` | kedalaman maksimal dari bibit (bibit = 0, tautannya = 1, dst.); bawaan 2 |
+| `max_links_per_page` | domain baru maksimal per halaman; bawaan 10 |
+| `max_new_per_run` | total kandidat baru dari tautan dan redirect per run; bawaan 500 |
+| `ignore` | domain besar yang tidak pernah ditelusuri (media sosial, CDN, perbankan, e-commerce, pemendek tautan); tambahkan sesuai kebutuhan |
+
+Ketentuan lain: halaman institusi (`.go.id`, `.ac.id`, dan sejenisnya) tidak pernah ditelusuri, domain yang sudah ada di list upstream atau whitelist dilewati, dan domain berkata kunci judol didahulukan. Kolom `sumber` di `data/sources.tsv` menunjukkan asal tiap domain (`crawl:induk.com`, `redirect:induk.com`, `list:...`, `certstream`, dan seterusnya), jadi mudah ditelusuri kalau ada yang salah.
 
 ## Isi repo
 

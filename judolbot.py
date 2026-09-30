@@ -58,6 +58,9 @@ REDIRECT_RE = re.compile(
     re.I,
 )
 
+HREF_RE = re.compile(r"""href\s*=\s*["'](https?://[^"'\s>]+)""", re.I)
+IGNORE = {d.lower() for d in CFG.get("crawl", {}).get("ignore", [])}
+
 RES = dns.resolver.Resolver(configure=False)
 RES.nameservers = ["8.8.8.8", "1.1.1.1"]  # resolver publik: tidak ikut memblokir judol
 RES.lifetime = 5
@@ -146,7 +149,13 @@ def parse_list(text: str) -> set[str]:
     return out
 
 
+_UPSTREAM: set[str] | None = None
+
+
 def load_upstream() -> set[str]:
+    global _UPSTREAM
+    if _UPSTREAM is not None:
+        return _UPSTREAM
     known: set[str] = set()
     for url in CFG["upstream_lists"]:
         try:
@@ -155,6 +164,7 @@ def load_upstream() -> set[str]:
             known |= got
         except Exception as e:  # sumber boleh gagal tanpa menghentikan proses
             log(f"  ! gagal ambil {url}: {e}")
+    _UPSTREAM = known
     return known
 
 
@@ -415,6 +425,23 @@ def redirect_targets(domain: str, final_url: str, html: str) -> list[str]:
     return found[:3]
 
 
+def outbound_links(domain: str, html: str) -> list[str]:
+    """Domain tujuan tautan <a href> di halaman, sudah disaring dari domain besar/institusi."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for u in HREF_RE.findall(html):
+        host = urlparse(u).hostname
+        d = reg_domain(host) if host else None
+        if not d or d == domain or d in seen:
+            continue
+        seen.add(d)
+        if covered(d, IGNORE) or protected(d):
+            continue
+        out.append(d)
+    out.sort(key=lambda d: not name_hit(d))  # domain berkata kunci judol didahulukan
+    return out[:30]
+
+
 def check(domain: str) -> dict:
     st = dns_status(domain)
     res = {"dns": st}
@@ -444,6 +471,8 @@ def check(domain: str) -> dict:
         res.update(decision="review", note=f"dilindungi anti-bot (HTTP {status})")
     else:
         res["decision"] = "reject"
+    if res["decision"] == "auto":
+        res["links"] = outbound_links(domain, html)
     return res
 
 
@@ -460,7 +489,19 @@ def cmd_verify() -> None:
     targets = cand + recheck
     log(f"  cek {len(cand)} kandidat baru + {len(recheck)} entri lama (workers={vc['workers']})")
 
-    new_redirects: list[str] = []
+    crawl = CFG.get("crawl", {})
+    known = load_upstream()
+    queued = 0
+
+    def queue(new: str, src: str, depth: int) -> bool:
+        nonlocal queued
+        if (new in db or covered(new, wl) or covered(new, known) or protected(new)
+                or queued >= crawl.get("max_new_per_run", 500)):
+            return False
+        db[new] = {"status": "candidate", "source": src, "first_seen": TODAY, "depth": depth}
+        queued += 1
+        return True
+
     done = 0
     deadline = time.time() + vc["time_budget_seconds"]
     with cf.ThreadPoolExecutor(max_workers=vc["workers"]) as ex:
@@ -479,8 +520,18 @@ def cmd_verify() -> None:
                 res["decision"] = "review"
                 res["note"] = "domain institusi (kemungkinan situs resmi diretas)"
             apply_result(db, d, res, was_auto)
-            if res["decision"] in ("auto", "review"):
-                new_redirects += res.get("redirects", [])
+            dec = res["decision"]
+            depth = db[d].get("depth", 0)
+            if dec in ("auto", "review"):
+                for r in res.get("redirects", []):
+                    queue(r, f"redirect:{d}", depth + 1)
+            if crawl.get("enabled") and dec == "auto" and depth < crawl.get("max_depth", 2):
+                taken = 0
+                for link in res.get("links", []):
+                    if taken >= crawl.get("max_links_per_page", 10):
+                        break
+                    if queue(link, f"crawl:{d}", depth + 1):
+                        taken += 1
             done += 1
             if time.time() > deadline:
                 log("  ! batas waktu tercapai, sisa antrean ditunda ke run berikutnya")
@@ -488,12 +539,9 @@ def cmd_verify() -> None:
                     x.cancel()
                 break
 
-    for r in dict.fromkeys(new_redirects):  # domain tujuan redirect jadi kandidat baru
-        if r not in db and not covered(r, wl):
-            db[r] = {"status": "candidate", "source": "redirect", "first_seen": TODAY}
     expire(db)
     save_db(db)
-    log(f"  selesai: {done} domain diperiksa")
+    log(f"  selesai: {done} domain diperiksa; {queued} kandidat baru dari tautan/redirect")
 
 
 def apply_result(db: dict, d: str, res: dict, was_auto: bool) -> None:
