@@ -165,7 +165,8 @@ def cmd_collect() -> None:
     wl = set(read_lines(DATA / "whitelist.txt"))
     known = load_upstream()
     added = 0
-    limit = CFG["max_new_candidates"]
+    limit = CFG["max_new_candidates"]  # batas per sumber, per run
+    per_src: dict[str, int] = {}
 
     def add(name: str, src: str, force: bool = False) -> None:
         nonlocal added
@@ -177,8 +178,9 @@ def cmd_collect() -> None:
                 db[d] = {"status": "candidate", "source": src, "first_seen": TODAY}
                 added += 1
             return
-        if added >= limit:
+        if per_src.get(src, 0) >= limit:
             return
+        per_src[src] = per_src.get(src, 0) + 1
         db[d] = {"status": "candidate", "source": src, "first_seen": TODAY}
         added += 1
 
@@ -197,8 +199,11 @@ def cmd_collect() -> None:
     # 2) daftar kandidat tambahan (harus lolos verifikasi)
     for url in CFG["candidate_lists"]:
         try:
-            for d in parse_list(fetch_text(url)):
-                add(d, "list:" + urlparse(url).netloc)
+            names = parse_list(fetch_text(url))
+            before = added
+            for d in sorted(names):
+                add(d, src_label(url))
+            log(f"  daftar kandidat {len(names):>7} domain, baru masuk {added - before} <- {url}")
         except Exception as e:
             log(f"  ! gagal ambil {url}: {e}")
 
@@ -215,7 +220,15 @@ def cmd_collect() -> None:
     # hapus entri kedaluwarsa
     expire(db)
     save_db(db)
-    log(f"  kandidat baru total: {added}")
+    log(f"  kandidat baru total: {added} {per_src}")
+
+
+def src_label(url: str) -> str:
+    u = urlparse(url)
+    parts = u.path.strip("/").split("/")
+    if u.netloc == "raw.githubusercontent.com" and len(parts) > 1:
+        return f"list:{parts[0]}/{parts[1]}"
+    return f"list:{u.netloc}"
 
 
 def collect_certstream(cfg: dict, add) -> None:
@@ -224,54 +237,62 @@ def collect_certstream(cfg: dict, add) -> None:
     except ImportError:
         log("  ! websocket-client belum terpasang, CertStream dilewati")
         return
+    urls = cfg.get("urls") or [cfg["url"]]
     end = time.time() + cfg["seconds"]
     seen: set[str] = set()
-    n = 0
-    try:
-        ws = websocket.create_connection(cfg["url"], timeout=15)
-        ws.settimeout(15)
-        while time.time() < end:
-            try:
-                msg = ws.recv()
-            except websocket.WebSocketTimeoutException:
-                continue
-            if not NAME_RE.search(msg):  # saring murah sebelum parse JSON
-                continue
-            try:
-                names = json.loads(msg)["data"]["leaf_cert"]["all_domains"]
-            except Exception:
-                continue
-            for name in names:
-                d = reg_domain(name)
-                if d and d not in seen and name_hit(d):
-                    seen.add(d)
-                    add(d, "certstream")
-                    n += 1
-        ws.close()
-    except Exception as e:
-        log(f"  ! CertStream gagal: {e}")
+    n, fails, ui = 0, 0, 0
+    while time.time() < end and fails < 4:
+        url = urls[ui % len(urls)]
+        try:
+            ws = websocket.create_connection(url, timeout=15)
+            ws.settimeout(15)
+            while time.time() < end:
+                try:
+                    msg = ws.recv()
+                except websocket.WebSocketTimeoutException:
+                    continue
+                if not NAME_RE.search(msg):  # saring murah sebelum parse JSON
+                    continue
+                try:
+                    names = json.loads(msg)["data"]["leaf_cert"]["all_domains"]
+                except Exception:
+                    continue
+                for name in names:
+                    d = reg_domain(name)
+                    if d and d not in seen and name_hit(d):
+                        seen.add(d)
+                        add(d, "certstream")
+                        n += 1
+            ws.close()
+        except Exception as e:
+            fails += 1
+            ui += 1
+            log(f"  ! CertStream {url} gagal ({fails}/4): {e}")
+            time.sleep(5)
     log(f"  certstream: {n} domain cocok kata kunci")
 
 
 def collect_crtsh(cfg: dict, add) -> None:
     cutoff = NOW - dt.timedelta(days=cfg["lookback_days"])
     for kw in cfg["keywords"]:
-        rows = []
+        rows: list = []
         for attempt in range(2):
             try:
                 r = requests.get(
                     "https://crt.sh/",
                     params={"q": f"%{kw}%", "output": "json", "exclude": "expired", "deduplicate": "Y"},
-                    timeout=90,
+                    timeout=60,
                     headers=HEADERS,
                 )
                 r.raise_for_status()
                 rows = r.json()
-                break
+                if rows:
+                    break
+                log(f"  crt.sh '{kw}': hasil kosong (percobaan {attempt + 1})")
             except Exception as e:
                 log(f"  ! crt.sh '{kw}' percobaan {attempt + 1} gagal: {e}")
-                time.sleep(5)
-        n = 0
+            time.sleep(8)
+        n = recent = 0
         for row in rows[:20000]:
             try:
                 nb = dt.datetime.fromisoformat(row["not_before"][:19]).replace(tzinfo=dt.timezone.utc)
@@ -279,12 +300,13 @@ def collect_crtsh(cfg: dict, add) -> None:
                 continue
             if nb < cutoff:
                 continue
+            recent += 1
             for name in row.get("name_value", "").split("\n"):
                 d = reg_domain(name)
                 if d and name_hit(d):
                     add(d, "crt.sh")
                     n += 1
-        log(f"  crt.sh '{kw}': {n} hit")
+        log(f"  crt.sh '{kw}': {len(rows)} baris, {recent} baru (<= {cfg['lookback_days']} hari), {n} hit")
         time.sleep(cfg["sleep"])
 
 
