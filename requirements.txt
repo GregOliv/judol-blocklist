@@ -1,0 +1,4 @@
+requests>=2.31
+dnspython>=2.4
+tldextract>=5.1
+websocket-client>=1.7

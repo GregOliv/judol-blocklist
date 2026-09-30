@@ -1,0 +1,20 @@
+name: Lapor domain judol
+description: Laporkan domain judi online yang belum terblokir
+title: "[Lapor] "
+labels: ["lapor-domain"]
+body:
+  - type: textarea
+    id: domain
+    attributes:
+      label: Domain
+      description: Satu domain per baris (maksimal 20), tanpa https:// dan tanpa path.
+      placeholder: contoh-situs-judol.com
+    validations:
+      required: true
+  - type: textarea
+    id: bukti
+    attributes:
+      label: Bukti / catatan
+      description: Opsional. Misalnya tautan tangkapan layar atau asal situs ditemukan.
+    validations:
+      required: false

@@ -1,0 +1,38 @@
+{
+  "upstream_lists": [
+    "https://blocklistproject.github.io/Lists/alt-version/gambling-nl.txt",
+    "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/domains/gambling.txt"
+  ],
+  "candidate_lists": [],
+
+  "certstream": { "enabled": true, "url": "wss://certstream.calidog.io", "seconds": 180 },
+  "crtsh": { "enabled": true, "keywords": ["gacor", "maxwin", "togel", "judi"], "lookback_days": 7, "sleep": 3 },
+
+  "name_terms": ["slot", "gacor", "maxwin", "togel", "toto", "judi", "casino", "zeus", "olympus",
+                 "sbobet", "pragmatic", "scatter", "sweetbonanza", "bandar", "jackpot"],
+
+  "strong_terms": ["slot gacor", "gacor", "maxwin", "rtp live", "rtp slot", "situs slot", "slot online",
+                   "judi online", "judi slot", "togel", "bandar togel", "link alternatif", "daftar slot",
+                   "slot88", "slot777", "sbobet", "deposit pulsa", "slot deposit", "bocoran slot",
+                   "pola gacor", "scatter hitam", "sweet bonanza", "gates of olympus", "starlight princess",
+                   "bonus new member", "agen slot", "agen judi", "situs judi", "situs toto", "daftar togel",
+                   "wd cepat", "link slot", "slot thailand"],
+  "weak_terms": ["deposit", "withdraw", "jackpot", "casino", "poker", "taruhan", "bet", "slot"],
+
+  "thresholds": { "auto": 6, "min_strong_auto": 2, "review": 3 },
+
+  "verify": {
+    "workers": 20,
+    "max_new_per_run": 1500,
+    "recheck_per_run": 400,
+    "prune_after": 5,
+    "max_bytes": 400000,
+    "max_redirects": 5,
+    "time_budget_seconds": 1500
+  },
+
+  "max_new_candidates": 3000,
+  "max_entries": 100000,
+  "protected_suffixes": [".go.id", ".ac.id", ".sch.id", ".mil.id", ".desa.id", ".gov", ".edu", ".mil"],
+  "expire_days": { "dead": 30, "reject": 30, "review": 60, "candidate": 14 }
+}

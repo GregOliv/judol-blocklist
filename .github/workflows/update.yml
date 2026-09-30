@@ -1,0 +1,41 @@
+name: Update blocklist
+
+on:
+  schedule:
+    - cron: "17 */12 * * *"   # tiap 12 jam
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: judol-write
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Jalankan judolbot
+        run: python judolbot.py run
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+      - name: Commit hasil
+        run: |
+          git config user.name "judolbot"
+          git config user.email "judolbot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Tidak ada perubahan."
+          else
+            git commit -m "chore: update blocklist $(date -u +%F)"
+            git pull --rebase
+            git push
+          fi

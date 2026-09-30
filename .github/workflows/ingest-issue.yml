@@ -1,0 +1,52 @@
+name: Ingest laporan domain
+
+on:
+  issues:
+    types: [opened]
+
+concurrency:
+  group: judol-write
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    if: startsWith(github.event.issue.title, '[Lapor]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Ambil domain dari isi issue
+        id: ingest
+        run: python judolbot.py add-issue
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+      - name: Commit kandidat
+        run: |
+          git config user.name "judolbot"
+          git config user.email "judolbot@users.noreply.github.com"
+          git add data/candidates.txt
+          if git diff --cached --quiet; then
+            echo "Tidak ada perubahan."
+          else
+            git commit -m "chore: kandidat dari issue #${{ github.event.issue.number }}"
+            git pull --rebase
+            git push
+          fi
+      - name: Balas dan tutup issue
+        run: |
+          gh issue comment "$N" --body "Terima kasih! ${COUNT} domain masuk antrean verifikasi otomatis. Domain hanya diblokir bila lolos pengecekan DNS dan isi halaman."
+          gh issue close "$N" --reason completed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          N: ${{ github.event.issue.number }}
+          COUNT: ${{ steps.ingest.outputs.count }}

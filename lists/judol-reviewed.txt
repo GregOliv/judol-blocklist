@@ -1,0 +1,7 @@
+! Title: Judol Blocklist (Reviewed) by goliverr
+! Description: Domain judi online yang sudah dicek manual.
+! Homepage: https://github.com/GregOliv/judol-blocklist
+! Version: 2026.09.30.0533
+! Last modified: 2026-09-30T05:33:13Z
+! Expires: 1 day
+! Entries: 0

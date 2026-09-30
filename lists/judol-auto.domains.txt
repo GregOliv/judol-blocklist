@@ -1,0 +1,7 @@
+# Title: Judol Blocklist (Auto) domains only
+# Description: Versi domain polos untuk Pi-hole dan sejenisnya.
+# Homepage: https://github.com/GregOliv/judol-blocklist
+# Version: 2026.09.30.0533
+# Last modified: 2026-09-30T05:33:13Z
+# Expires: 1 day
+# Entries: 0

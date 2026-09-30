@@ -1,0 +1,3 @@
+# Domain yang TIDAK BOLEH diblokir (satu per baris). Subdomain ikut terlindungi.
+# Contoh:
+# contoh-situs-resmi.co.id

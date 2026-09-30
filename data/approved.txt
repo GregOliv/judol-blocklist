@@ -1,0 +1,2 @@
+# Domain yang sudah kamu cek manual dan pasti judol (satu per baris).
+# Isinya masuk ke lists/judol-reviewed.txt tanpa diverifikasi ulang.

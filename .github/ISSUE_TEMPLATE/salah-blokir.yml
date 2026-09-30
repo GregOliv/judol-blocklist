@@ -1,0 +1,19 @@
+name: Lapor salah blokir
+description: Domain ini bukan judol tetapi ikut terblokir
+title: "[Salah blokir] "
+labels: ["salah-blokir"]
+body:
+  - type: input
+    id: domain
+    attributes:
+      label: Domain
+      placeholder: contoh.com
+    validations:
+      required: true
+  - type: textarea
+    id: alasan
+    attributes:
+      label: Alasan
+      description: Jelaskan kenapa domain ini sah.
+    validations:
+      required: true

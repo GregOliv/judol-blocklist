@@ -1,0 +1,7 @@
+! Title: Judol Blocklist (Auto) by goliverr
+! Description: Domain judi online hasil deteksi otomatis, diverifikasi lewat DNS dan isi halaman.
+! Homepage: https://github.com/GregOliv/judol-blocklist
+! Version: 2026.09.30.0533
+! Last modified: 2026-09-30T05:33:13Z
+! Expires: 1 day
+! Entries: 0

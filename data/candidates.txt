@@ -1,0 +1,1 @@
+# domain<TAB>sumber  (diisi otomatis dari GitHub Issues; boleh isi manual)
